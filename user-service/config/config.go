@@ -87,7 +87,7 @@ func setDefaults() {
 	viper.SetDefault("server.port", 50051)
 	viper.SetDefault("server.host", "0.0.0.0")
 
-	viper.SetDefault("database.host", "localhost")
+	viper.SetDefault("database.host", "postgres")
 	viper.SetDefault("database.port", 5432)
 	viper.SetDefault("database.user", "taskmanager")
 	viper.SetDefault("database.password", "taskmanager123")
