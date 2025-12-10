@@ -106,6 +106,38 @@ services:
     networks:
       - task-manager-network
 
+  # User Service
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: task-manager-user-service
+    ports:
+      - "50051:50051"
+    environment:
+      - APP_ENV=${APP_ENV:-development}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-taskmanager}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-taskmanager123}
+      - DB_NAME=${POSTGRES_DB:-taskmanager}
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    volumes:
+      - ./user-service:/app
+    networks:
+      - task-manager-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=:50051"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 volumes:
   postgres_data:
   redis_data:
