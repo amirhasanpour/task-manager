@@ -1,0 +1,40 @@
+server:
+  port: 50052
+  host: "0.0.0.0"
+
+database:
+  host: "postgres"
+  port: 5432
+  user: "taskmanager"
+  password: "taskmanager123"
+  name: "taskmanager"
+  sslmode: "disable"
+  max_open_conns: 25
+  max_idle_conns: 5
+  conn_max_lifetime: "5m"
+
+redis:
+  host: "redis"
+  port: 6379
+  password: ""
+  db: 0
+  pool_size: 10
+  min_idle_conns: 2
+  max_retries: 3
+  dial_timeout: "5s"
+  read_timeout: "3s"
+  write_timeout: "3s"
+  cache_ttl: "5m"
+
+logging:
+  level: "info"
+  encoding: "json"
+  output_paths: ["stdout"]
+  error_output_paths: ["stderr"]
+
+metrics:
+  port: 9093
+
+otel:
+  endpoint: "http://localhost:4317"
+  service_name: "todo-service"
