@@ -1,0 +1,119 @@
+syntax = "proto3";
+
+package todo;
+
+option go_package = "github.com/amirhasanpour/task-manager/todo-service/proto";
+
+import "google/protobuf/timestamp.proto";
+
+service TodoService {
+  rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse);
+  rpc GetTask(GetTaskRequest) returns (GetTaskResponse);
+  rpc UpdateTask(UpdateTaskRequest) returns (UpdateTaskResponse);
+  rpc DeleteTask(DeleteTaskRequest) returns (DeleteTaskResponse);
+  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
+  rpc ListTasksByUser(ListTasksByUserRequest) returns (ListTasksByUserResponse);
+}
+
+message Task {
+  string id = 1;
+  string user_id = 2;
+  string title = 3;
+  string description = 4;
+  TaskStatus status = 5;
+  TaskPriority priority = 6;
+  google.protobuf.Timestamp due_date = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+enum TaskStatus {
+  TODO = 0;
+  IN_PROGRESS = 1;
+  DONE = 2;
+  ARCHIVED = 3;
+}
+
+enum TaskPriority {
+  LOW = 0;
+  MEDIUM = 1;
+  HIGH = 2;
+  URGENT = 3;
+}
+
+message CreateTaskRequest {
+  string user_id = 1;
+  string title = 2;
+  string description = 3;
+  TaskStatus status = 4;
+  TaskPriority priority = 5;
+  google.protobuf.Timestamp due_date = 6;
+}
+
+message CreateTaskResponse {
+  Task task = 1;
+}
+
+message GetTaskRequest {
+  string id = 1;
+}
+
+message GetTaskResponse {
+  Task task = 1;
+}
+
+message UpdateTaskRequest {
+  string id = 1;
+  string user_id = 2;
+  string title = 3;
+  string description = 4;
+  TaskStatus status = 5;
+  TaskPriority priority = 6;
+  google.protobuf.Timestamp due_date = 7;
+}
+
+message UpdateTaskResponse {
+  Task task = 1;
+}
+
+message DeleteTaskRequest {
+  string id = 1;
+}
+
+message DeleteTaskResponse {
+  bool success = 1;
+}
+
+message ListTasksRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+  string filter_by_status = 3;
+  string filter_by_priority = 4;
+  string filter_by_user_id = 5;
+  string sort_by = 6;
+  bool sort_desc = 7;
+}
+
+message ListTasksResponse {
+  repeated Task tasks = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message ListTasksByUserRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  string filter_by_status = 4;
+  string filter_by_priority = 5;
+  string sort_by = 6;
+  bool sort_desc = 7;
+}
+
+message ListTasksByUserResponse {
+  repeated Task tasks = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
