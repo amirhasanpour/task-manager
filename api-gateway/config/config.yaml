@@ -1,0 +1,43 @@
+server:
+  port: 8080
+  host: "0.0.0.0"
+  graceful_shutdown_timeout: "10s"
+
+services:
+  user:
+    host: "localhost"
+    port: 50051
+    timeout: "5s"
+  todo:
+    host: "localhost"
+    port: 50052
+    timeout: "5s"
+
+jwt:
+  secret: "your-super-secret-jwt-key-change-in-production"
+  token_lifetime: "24h"
+
+logging:
+  level: "info"
+  encoding: "json"
+  output_paths: ["stdout"]
+  error_output_paths: ["stderr"]
+
+metrics:
+  port: 9091
+
+otel:
+  endpoint: "http://localhost:4317"
+  service_name: "api-gateway"
+
+cors:
+  allowed_origins: ["*"]
+  allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+  allowed_headers: ["Origin", "Content-Type", "Authorization", "Accept"]
+  allow_credentials: true
+  max_age: "12h"
+
+swagger:
+  enabled: true
+  path: "/swagger/*"
+  api_path: "/swagger/api.json"
