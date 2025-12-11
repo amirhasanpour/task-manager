@@ -1,0 +1,56 @@
+# Build stage
+FROM golang:1.25.1-alpine AS builder
+
+WORKDIR /app
+
+# Install dependencies
+RUN apk add --no-cache protoc git ca-certificates tzdata
+
+# Install Go protoc plugins
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest \
+    && go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+# Add Go bin path to PATH (for protoc to find the plugins)
+ENV PATH="/go/bin:${PATH}"
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the application
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/main.go
+
+# Final stage
+FROM alpine:latest
+
+RUN apk --no-cache add ca-certificates tzdata
+
+WORKDIR /root/
+
+# Copy the binary from builder
+COPY --from=builder /app/main .
+COPY --from=builder /app/config ./config
+
+# Copy proto files (for reference)
+COPY --from=builder /app/proto ./proto
+
+# Create necessary directories
+RUN mkdir -p logs
+
+# Install grpc_health_probe for health checks
+RUN wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/v0.4.24/grpc_health_probe-linux-amd64 && \
+    chmod +x /bin/grpc_health_probe
+
+# Expose ports
+EXPOSE 50052 9093
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget -qO- http://localhost:9093/metrics >/dev/null 2>&1 && \
+    grpc_health_probe -addr=:50052 -tls=false
+
+# Run the application
+CMD ["./main"]
