@@ -138,6 +138,41 @@ services:
       timeout: 10s
       retries: 3
 
+  # Todo Service
+  todo-service:
+    build:
+      context: ./todo-service
+      dockerfile: Dockerfile
+    container_name: task-manager-todo-service
+    ports:
+      - "50052:50052"
+    environment:
+      - APP_ENV=${APP_ENV:-development}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-taskmanager}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-taskmanager123}
+      - DB_NAME=${POSTGRES_DB:-taskmanager}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    volumes:
+      - ./todo-service:/app
+    networks:
+      - task-manager-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=:50052"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 volumes:
   postgres_data:
   redis_data:
