@@ -6,7 +6,6 @@ WORKDIR /app
 # Install dependencies
 RUN apk add --no-cache protoc git ca-certificates tzdata
 
-
 # Install Go protoc plugins
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest \
     && go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
@@ -40,6 +39,10 @@ COPY --from=builder /app/proto ./proto
 
 # Create necessary directories
 RUN mkdir -p logs
+
+# Install grpc_health_probe for health checks
+RUN wget -qO/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/v0.4.24/grpc_health_probe-linux-amd64 && \
+    chmod +x /bin/grpc_health_probe
 
 # Expose ports
 EXPOSE 50051 9092
