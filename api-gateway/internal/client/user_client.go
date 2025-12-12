@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+// UserClient interface defines the methods for user service client
 type UserClient interface {
 	CreateUser(ctx context.Context, req *pb.CreateUserRequest) (*pb.CreateUserResponse, error)
 	GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.GetUserResponse, error)
@@ -26,11 +27,17 @@ type UserClient interface {
 	Close() error
 }
 
-type userClient struct {
+// userClientImpl is the actual implementation
+type userClientImpl struct {
 	conn   *grpc.ClientConn
 	client pb.UserServiceClient
 	logger *zap.Logger
 	tracer trace.Tracer
+}
+
+// UserClientImpl is the exported type
+type UserClientImpl struct {
+	*userClientImpl
 }
 
 type UserConfig struct {
@@ -56,15 +63,17 @@ func NewUserClient(cfg UserConfig) (UserClient, error) {
 	logger := zap.L().Named("user_client")
 	logger.Info("Connected to user service", zap.String("address", address))
 
-	return &userClient{
+	impl := &userClientImpl{
 		conn:   conn,
 		client: client,
 		logger: logger,
 		tracer: otel.Tracer("user-client"),
-	}, nil
+	}
+
+	return &UserClientImpl{impl}, nil
 }
 
-func (c *userClient) CreateUser(ctx context.Context, req *pb.CreateUserRequest) (*pb.CreateUserResponse, error) {
+func (c *userClientImpl) CreateUser(ctx context.Context, req *pb.CreateUserRequest) (*pb.CreateUserResponse, error) {
 	ctx, span := c.tracer.Start(ctx, "UserClient.CreateUser")
 	defer span.End()
 
@@ -77,7 +86,7 @@ func (c *userClient) CreateUser(ctx context.Context, req *pb.CreateUserRequest) 
 	return c.client.CreateUser(ctx, req)
 }
 
-func (c *userClient) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.GetUserResponse, error) {
+func (c *userClientImpl) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.GetUserResponse, error) {
 	ctx, span := c.tracer.Start(ctx, "UserClient.GetUser")
 	defer span.End()
 
@@ -86,7 +95,7 @@ func (c *userClient) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.G
 	return c.client.GetUser(ctx, req)
 }
 
-func (c *userClient) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest) (*pb.UpdateUserResponse, error) {
+func (c *userClientImpl) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest) (*pb.UpdateUserResponse, error) {
 	ctx, span := c.tracer.Start(ctx, "UserClient.UpdateUser")
 	defer span.End()
 
@@ -95,7 +104,7 @@ func (c *userClient) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest) 
 	return c.client.UpdateUser(ctx, req)
 }
 
-func (c *userClient) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest) (*pb.DeleteUserResponse, error) {
+func (c *userClientImpl) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest) (*pb.DeleteUserResponse, error) {
 	ctx, span := c.tracer.Start(ctx, "UserClient.DeleteUser")
 	defer span.End()
 
@@ -104,7 +113,7 @@ func (c *userClient) DeleteUser(ctx context.Context, req *pb.DeleteUserRequest) 
 	return c.client.DeleteUser(ctx, req)
 }
 
-func (c *userClient) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*pb.ListUsersResponse, error) {
+func (c *userClientImpl) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*pb.ListUsersResponse, error) {
 	ctx, span := c.tracer.Start(ctx, "UserClient.ListUsers")
 	defer span.End()
 
@@ -116,7 +125,7 @@ func (c *userClient) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*
 	return c.client.ListUsers(ctx, req)
 }
 
-func (c *userClient) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
+func (c *userClientImpl) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
 	ctx, span := c.tracer.Start(ctx, "UserClient.Register")
 	defer span.End()
 
@@ -128,7 +137,7 @@ func (c *userClient) Register(ctx context.Context, req *pb.RegisterRequest) (*pb
 	return c.client.Register(ctx, req)
 }
 
-func (c *userClient) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
+func (c *userClientImpl) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
 	ctx, span := c.tracer.Start(ctx, "UserClient.Login")
 	defer span.End()
 
@@ -137,7 +146,7 @@ func (c *userClient) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Login
 	return c.client.Login(ctx, req)
 }
 
-func (c *userClient) ValidateToken(ctx context.Context, req *pb.ValidateTokenRequest) (*pb.ValidateTokenResponse, error) {
+func (c *userClientImpl) ValidateToken(ctx context.Context, req *pb.ValidateTokenRequest) (*pb.ValidateTokenResponse, error) {
 	ctx, span := c.tracer.Start(ctx, "UserClient.ValidateToken")
 	defer span.End()
 
@@ -145,7 +154,7 @@ func (c *userClient) ValidateToken(ctx context.Context, req *pb.ValidateTokenReq
 	return c.client.ValidateToken(ctx, req)
 }
 
-func (c *userClient) Close() error {
+func (c *userClientImpl) Close() error {
 	c.logger.Info("Closing user client connection")
 	return c.conn.Close()
 }

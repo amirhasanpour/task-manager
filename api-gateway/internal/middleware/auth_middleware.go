@@ -5,9 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/amirhasanpour/task-manager/api-gateway/internal/client"
-	"github.com/amirhasanpour/task-manager/api-gateway/proto"
+	pb "github.com/amirhasanpour/task-manager/api-gateway/proto"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
 	"go.uber.org/zap"
@@ -57,10 +58,10 @@ func (m *AuthMiddleware) Handler() gin.HandlerFunc {
 			return
 		}
 
-		// Validate token with user service
+		// Validate token
 		user, err := m.validateToken(c.Request.Context(), tokenString)
 		if err != nil {
-			m.logger.Debug("Token validation failed",
+			m.logger.Debug("Token validation failed", 
 				zap.Error(err),
 				zap.String("path", c.Request.URL.Path),
 			)
@@ -84,7 +85,7 @@ func (m *AuthMiddleware) Handler() gin.HandlerFunc {
 	}
 }
 
-func (m *AuthMiddleware) validateToken(ctx context.Context, tokenString string) (*proto.User, error) {
+func (m *AuthMiddleware) validateToken(ctx context.Context, tokenString string) (*pb.User, error) {
 	// First, try to parse and validate JWT locally for performance
 	claims, err := m.parseJWT(tokenString)
 	if err != nil {
@@ -93,30 +94,28 @@ func (m *AuthMiddleware) validateToken(ctx context.Context, tokenString string) 
 		return m.validateWithUserService(ctx, tokenString)
 	}
 
-	// Check if token is expired
-	if !claims.Valid {
-		m.logger.Debug("JWT token expired locally")
-		return m.validateWithUserService(ctx, tokenString)
-	}
-
 	// Extract user info from claims
-	userID, ok := claims.Claims.(jwt.MapClaims)["user_id"].(string)
+	userID, ok := claims["user_id"].(string)
 	if !ok {
 		m.logger.Debug("Missing user_id in JWT claims")
 		return m.validateWithUserService(ctx, tokenString)
 	}
 
-	// Return user info from claims (simplified)
-	return &proto.User{
+	// Return user info from claims
+	return &pb.User{
 		Id:       userID,
-		Username: claims.Claims.(jwt.MapClaims)["username"].(string),
-		Email:    claims.Claims.(jwt.MapClaims)["email"].(string),
-		FullName: claims.Claims.(jwt.MapClaims)["full_name"].(string),
+		Username: m.getStringFromClaims(claims, "username"),
+		Email:    m.getStringFromClaims(claims, "email"),
+		FullName: m.getStringFromClaims(claims, "full_name"),
 	}, nil
 }
 
-func (m *AuthMiddleware) parseJWT(tokenString string) (*jwt.Token, error) {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+func (m *AuthMiddleware) parseJWT(tokenString string) (jwt.MapClaims, error) {
+	m.logger.Debug("Attempting to parse JWT token", 
+		zap.String("token_prefix", tokenString[:min(50, len(tokenString))]),
+	)
+	
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		// Validate signing method
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -125,24 +124,88 @@ func (m *AuthMiddleware) parseJWT(tokenString string) (*jwt.Token, error) {
 	})
 
 	if err != nil {
-		return nil, err
+		m.logger.Error("JWT parse error", 
+			zap.Error(err),
+			zap.Any("token_header", token.Header),
+		)
+		return nil, fmt.Errorf("failed to parse token: %w", err)
 	}
 
 	if !token.Valid {
+		m.logger.Error("JWT token invalid")
 		return nil, errors.New("invalid token")
 	}
 
-	return token, nil
+	// Extract claims
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		m.logger.Error("Invalid JWT claims type")
+		return nil, errors.New("invalid token claims")
+	}
+
+	// Debug: Print all claims
+	m.logger.Debug("JWT claims", zap.Any("claims", claims))
+	
+	// Check expiration
+	exp, ok := claims["exp"].(float64)
+	if ok {
+		expTime := time.Unix(int64(exp), 0)
+		m.logger.Debug("Token expiration", 
+			zap.Time("expiration_time", expTime),
+			zap.Time("current_time", time.Now()),
+			zap.Duration("time_until_expiry", time.Until(expTime)),
+		)
+		
+		if time.Now().After(expTime) {
+			m.logger.Error("Token expired", 
+				zap.Time("expired_at", expTime),
+				zap.Duration("expired_by", time.Since(expTime)),
+			)
+			return nil, errors.New("token has expired")
+		}
+	} else {
+		m.logger.Warn("No expiration claim in token")
+	}
+
+	// Check if token is issued at valid time
+	if iat, ok := claims["iat"].(float64); ok {
+		iatTime := time.Unix(int64(iat), 0)
+		if time.Now().Before(iatTime) {
+			m.logger.Error("Token issued in future", 
+				zap.Time("issued_at", iatTime),
+				zap.Duration("time_until_issue", time.Until(iatTime)),
+			)
+			return nil, errors.New("token issued at invalid time")
+		}
+	}
+
+	return claims, nil
 }
 
-func (m *AuthMiddleware) validateWithUserService(ctx context.Context, tokenString string) (*proto.User, error) {
-	req := &proto.ValidateTokenRequest{
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func (m *AuthMiddleware) getStringFromClaims(claims jwt.MapClaims, key string) string {
+	if val, ok := claims[key]; ok {
+		if str, ok := val.(string); ok {
+			return str
+		}
+	}
+	return ""
+}
+
+func (m *AuthMiddleware) validateWithUserService(ctx context.Context, tokenString string) (*pb.User, error) {
+	req := &pb.ValidateTokenRequest{
 		Token: tokenString,
 	}
 
 	resp, err := m.userClient.ValidateToken(ctx, req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to validate token: %w", err)
 	}
 
 	if !resp.Valid {

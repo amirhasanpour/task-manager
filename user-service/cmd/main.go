@@ -101,8 +101,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	expirationHours := cfg.JWT.ExpirationHours
+	if expirationHours <= 0 {
+		expirationHours = 24 // Default to 24 hours
+		log.Warn("JWT expiration hours is invalid, using default", 
+			zap.Int("configured_value", cfg.JWT.ExpirationHours),
+			zap.Int("using_value", expirationHours),
+		)
+	}
+
 	// Initialize JWT manager
-	jwtManager := auth.NewJWTManager(cfg.JWT.Secret, cfg.JWT.ExpirationHours)
+	jwtManager := auth.NewJWTManager(cfg.JWT.Secret, expirationHours)
 
 	// Initialize repository
 	userRepo := repository.NewUserRepository(database)
