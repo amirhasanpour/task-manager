@@ -104,11 +104,11 @@ func setDefaults() {
 	viper.SetDefault("server.host", "0.0.0.0")
 	viper.SetDefault("server.graceful_shutdown_timeout", "10s")
 
-	viper.SetDefault("services.user.host", "localhost")
+	viper.SetDefault("services.user.host", "user-service")
 	viper.SetDefault("services.user.port", 50051)
 	viper.SetDefault("services.user.timeout", "5s")
 
-	viper.SetDefault("services.todo.host", "localhost")
+	viper.SetDefault("services.todo.host", "todo-service")
 	viper.SetDefault("services.todo.port", 50052)
 	viper.SetDefault("services.todo.timeout", "5s")
 

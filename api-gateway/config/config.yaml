@@ -5,11 +5,11 @@ server:
 
 services:
   user:
-    host: "localhost"
+    host: "user-service"
     port: 50051
     timeout: "5s"
   todo:
-    host: "localhost"
+    host: "todo-service"
     port: 50052
     timeout: "5s"
 
