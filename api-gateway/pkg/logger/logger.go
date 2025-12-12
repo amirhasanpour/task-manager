@@ -37,8 +37,8 @@ func InitLogger(cfg Config) error {
 		Sampling:          nil,
 		Encoding:          cfg.Encoding,
 		EncoderConfig:     encoderConfig,
-		OutputPaths:       cfg.OutputPaths,
-		ErrorOutputPaths:  cfg.ErrorOutputPaths,
+		OutputPaths:       []string{"stdout"},
+		ErrorOutputPaths:  []string{"stdout"},
 	}
 
 	logger, err := config.Build()
