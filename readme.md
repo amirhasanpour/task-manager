@@ -50,3 +50,39 @@ docker-compose down -v
 - [User Management Endpoints](./endpoints/user-management/user-management.md)
 - [Task Management Endpoints](./endpoints/task-management/task-management.md)
 - [Health Check](./endpoints/health-check/health-check.md)
+
+---
+
+## Running Tests
+
+### Run All Tests
+
+```bash
+cd todo-service
+go test ./tests/... -v
+```
+
+### Run Specific Test Suites
+
+#### Repository Tests Only
+
+```bash
+go test ./tests -run TestTaskRepositoryTestSuite -v
+```
+
+#### Service Tests Only
+
+```bash
+go test ./tests -run TestTaskServiceTestSuite -v
+```
+
+#### Handler Tests Only
+
+```bash
+go test ./tests -run TestTaskHandlerTestSuite -v
+```
+
+## Swagger
+
+- [swagger docs](./api-gateway/internal/docs/docs.go)
+- [swagger.json](./api-gateway/internal/docs/swagger.json)
