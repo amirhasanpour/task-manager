@@ -5,6 +5,7 @@ import (
 	"github.com/amirhasanpour/task-manager/api-gateway/internal/handler"
 	"github.com/amirhasanpour/task-manager/api-gateway/internal/middleware"
 	"github.com/amirhasanpour/task-manager/api-gateway/pkg/metrics"
+	_ "github.com/amirhasanpour/task-manager/api-gateway/internal/docs"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.uber.org/zap"
