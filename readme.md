@@ -68,15 +68,28 @@ Before using Swagger UI, please read API Endpoint section. You can visit Swagger
 
 ```bash
 cd todo-service
-go test ./tests/... -v
+go test ./tests/unit/... -v
 ```
 
-#### Run Unit Tests with Coverage
+#### Run Handler Tests separately
 
 ```bash
-go test ./tests/... -coverprofile=coverage.out -covermode=atomic
-go tool cover -func=coverage.out
-go tool cover -html=coverage.out -o coverage.html
+cd todo-service
+go test ./tests/unit -run TestTaskHandlerTestSuite -v
+```
+
+#### Run Service Tests separately
+
+```bash
+cd todo-service
+go test ./tests/unit -run TestTaskServiceTestSuite -v
+```
+
+#### Run Interface Tests separately
+
+```bash
+cd todo-service
+go test ./tests/unit -run TestRepositoryInterface -v
 ```
 
 ### Run Integration Tests
@@ -94,26 +107,8 @@ docker run -d --name test-postgres \
 sleep 5
 
 # Run integration tests
-RUN_INTEGRATION_TESTS=true go test -tags=integration ./tests/integration -v
+RUN_INTEGRATION_TESTS=true go test ./tests/integration -v
 
 # Clean up
 docker stop test-postgres && docker rm test-postgres
-```
-
-### Run All Tests (Unit + Integration)
-
-```bash
-# Create a test script
-cat > run_tests.sh << 'EOF'
-#!/bin/bash
-
-echo "=== Running Unit Tests ==="
-go test ./tests/... -v
-
-echo -e "\n=== Running Integration Tests ==="
-RUN_INTEGRATION_TESTS=true go test -tags=integration ./tests/integration -v
-EOF
-
-chmod +x run_tests.sh
-./run_tests.sh
 ```
