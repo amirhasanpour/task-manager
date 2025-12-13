@@ -130,8 +130,8 @@ func (suite *TaskHandlerTestSuite) TestCreateTask_Success() {
 		UpdatedAt:   time.Now(),
 	}
 
-	// Setup expectations
-	suite.service.On("CreateTask", suite.ctx, mock.AnythingOfType("*service.CreateTaskRequest")).
+	// Setup expectations - use mock.AnythingOfType("*context.valueCtx") for context
+	suite.service.On("CreateTask", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*service.CreateTaskRequest")).
 		Return(expectedTask, nil).
 		Once()
 
@@ -166,7 +166,7 @@ func (suite *TaskHandlerTestSuite) TestGetTask_Success() {
 	}
 
 	// Setup expectations
-	suite.service.On("GetTask", suite.ctx, suite.taskID).
+	suite.service.On("GetTask", mock.AnythingOfType("*context.valueCtx"), suite.taskID).
 		Return(expectedTask, nil).
 		Once()
 
@@ -187,7 +187,7 @@ func (suite *TaskHandlerTestSuite) TestGetTask_NotFound() {
 	}
 
 	// Setup expectations
-	suite.service.On("GetTask", suite.ctx, "non-existent-id").
+	suite.service.On("GetTask", mock.AnythingOfType("*context.valueCtx"), "non-existent-id").
 		Return(nil, status.Error(codes.NotFound, "task not found")).
 		Once()
 
@@ -230,7 +230,7 @@ func (suite *TaskHandlerTestSuite) TestUpdateTask_Success() {
 	}
 
 	// Setup expectations
-	suite.service.On("UpdateTask", suite.ctx, mock.AnythingOfType("*service.UpdateTaskRequest")).
+	suite.service.On("UpdateTask", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*service.UpdateTaskRequest")).
 		Return(updatedTask, nil).
 		Once()
 
@@ -268,7 +268,7 @@ func (suite *TaskHandlerTestSuite) TestUpdateTask_PartialUpdate() {
 	}
 
 	// Setup expectations
-	suite.service.On("UpdateTask", suite.ctx, mock.AnythingOfType("*service.UpdateTaskRequest")).
+	suite.service.On("UpdateTask", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*service.UpdateTaskRequest")).
 		Return(updatedTask, nil).
 		Once()
 
@@ -289,7 +289,7 @@ func (suite *TaskHandlerTestSuite) TestDeleteTask_Success() {
 	}
 
 	// Setup expectations
-	suite.service.On("DeleteTask", suite.ctx, suite.taskID).
+	suite.service.On("DeleteTask", mock.AnythingOfType("*context.valueCtx"), suite.taskID).
 		Return(nil).
 		Once()
 
@@ -338,7 +338,7 @@ func (suite *TaskHandlerTestSuite) TestListTasks_Success() {
 	const total int64 = 2
 
 	// Setup expectations
-	suite.service.On("ListTasks", suite.ctx, mock.AnythingOfType("*repository.TaskFilter"), 1, 10).
+	suite.service.On("ListTasks", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*repository.TaskFilter"), 1, 10).
 		Return(tasks, total, nil).
 		Once()
 
@@ -383,7 +383,7 @@ func (suite *TaskHandlerTestSuite) TestListTasksByUser_Success() {
 	const total int64 = 1
 
 	// Setup expectations
-	suite.service.On("ListTasksByUser", suite.ctx, suite.userID, mock.AnythingOfType("*repository.TaskFilter"), 1, 10).
+	suite.service.On("ListTasksByUser", mock.AnythingOfType("*context.valueCtx"), suite.userID, mock.AnythingOfType("*repository.TaskFilter"), 1, 10).
 		Return(tasks, total, nil).
 		Once()
 
@@ -411,7 +411,7 @@ func (suite *TaskHandlerTestSuite) TestListTasks_EmptyResult() {
 	const total int64 = 0
 
 	// Setup expectations
-	suite.service.On("ListTasks", suite.ctx, mock.AnythingOfType("*repository.TaskFilter"), 1, 10).
+	suite.service.On("ListTasks", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*repository.TaskFilter"), 1, 10).
 		Return(tasks, total, nil).
 		Once()
 
@@ -431,7 +431,7 @@ func (suite *TaskHandlerTestSuite) TestErrorPropagation() {
 	}
 
 	// Setup expectations - service returns internal error
-	suite.service.On("GetTask", suite.ctx, "non-existent-task").
+	suite.service.On("GetTask", mock.AnythingOfType("*context.valueCtx"), "non-existent-task").
 		Return(nil, status.Error(codes.Internal, "database error")).
 		Once()
 

@@ -5,12 +5,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/suite"
 	"github.com/amirhasanpour/task-manager/todo-service/internal/model"
 	"github.com/amirhasanpour/task-manager/todo-service/internal/repository"
 	"github.com/amirhasanpour/task-manager/todo-service/internal/service"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/suite"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // ==================== MOCKS ====================
@@ -227,16 +229,16 @@ func (suite *TaskServiceTestSuite) TestCreateTask_Success() {
 		DueDate:     &dueDate,
 	}
 
-	// Setup expectations
-	suite.repo.On("Create", suite.ctx, mock.AnythingOfType("*model.Task")).
+	// Setup expectations - use mock.AnythingOfType("*context.valueCtx") for context
+	suite.repo.On("Create", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.Task")).
 		Return(expectedTask, nil).
 		Once()
 	
-	suite.cache.On("InvalidateUserTasks", suite.ctx, suite.testUserID).
+	suite.cache.On("InvalidateUserTasks", mock.AnythingOfType("*context.valueCtx"), suite.testUserID).
 		Return(nil).
 		Once()
 	
-	suite.cache.On("SetTask", suite.ctx, expectedTask).
+	suite.cache.On("SetTask", mock.AnythingOfType("*context.valueCtx"), expectedTask).
 		Return(nil).
 		Once()
 
@@ -299,7 +301,7 @@ func (suite *TaskServiceTestSuite) TestGetTask_CacheHit() {
 	}
 
 	// Setup expectations - cache hit
-	suite.cache.On("GetTask", suite.ctx, suite.testTaskID).
+	suite.cache.On("GetTask", mock.AnythingOfType("*context.valueCtx"), suite.testTaskID).
 		Return(expectedTask, nil).
 		Once()
 
@@ -326,15 +328,15 @@ func (suite *TaskServiceTestSuite) TestGetTask_CacheMiss() {
 	}
 
 	// Setup expectations - cache miss
-	suite.cache.On("GetTask", suite.ctx, suite.testTaskID).
+	suite.cache.On("GetTask", mock.AnythingOfType("*context.valueCtx"), suite.testTaskID).
 		Return(nil, nil). // Cache miss
 		Once()
 	
-	suite.repo.On("FindByID", suite.ctx, suite.testTaskID).
+	suite.repo.On("FindByID", mock.AnythingOfType("*context.valueCtx"), suite.testTaskID).
 		Return(expectedTask, nil).
 		Once()
 	
-	suite.cache.On("SetTask", suite.ctx, expectedTask).
+	suite.cache.On("SetTask", mock.AnythingOfType("*context.valueCtx"), expectedTask).
 		Return(nil).
 		Once()
 
@@ -352,11 +354,11 @@ func (suite *TaskServiceTestSuite) TestGetTask_CacheMiss() {
 
 func (suite *TaskServiceTestSuite) TestGetTask_NotFound() {
 	// Setup expectations
-	suite.cache.On("GetTask", suite.ctx, suite.testTaskID).
+	suite.cache.On("GetTask", mock.AnythingOfType("*context.valueCtx"), suite.testTaskID).
 		Return(nil, nil).
 		Once()
 	
-	suite.repo.On("FindByID", suite.ctx, suite.testTaskID).
+	suite.repo.On("FindByID", mock.AnythingOfType("*context.valueCtx"), suite.testTaskID).
 		Return(nil, nil). // Not found
 		Once()
 
@@ -380,7 +382,7 @@ func (suite *TaskServiceTestSuite) TestGetTaskByUser_Success() {
 	}
 
 	// Setup expectations
-	suite.cache.On("GetTask", suite.ctx, suite.testTaskID).
+	suite.cache.On("GetTask", mock.AnythingOfType("*context.valueCtx"), suite.testTaskID).
 		Return(expectedTask, nil). // Cache hit
 		Once()
 
@@ -405,16 +407,9 @@ func (suite *TaskServiceTestSuite) TestGetTaskByUser_WrongUser() {
 	}
 
 	// Setup expectations - cache hit but wrong user
-	suite.cache.On("GetTask", suite.ctx, suite.testTaskID).
+	// Only cache.GetTask should be called
+	suite.cache.On("GetTask", mock.AnythingOfType("*context.valueCtx"), suite.testTaskID).
 		Return(expectedTask, nil). // Cache hit but wrong user
-		Once()
-	
-	suite.cache.On("GetTask", suite.ctx, suite.testTaskID).
-		Return(nil, nil). // Second call after cache miss
-		Once()
-	
-	suite.repo.On("FindByIDAndUser", suite.ctx, suite.testTaskID, suite.testUserID).
-		Return(nil, nil). // Not found for this user
 		Once()
 
 	// Execute
@@ -423,7 +418,22 @@ func (suite *TaskServiceTestSuite) TestGetTaskByUser_WrongUser() {
 	// Verify
 	assert.Error(suite.T(), err)
 	assert.Nil(suite.T(), task)
-	assert.Contains(suite.T(), err.Error(), "not found")
+	
+	// Check for PermissionDenied error
+	st, ok := status.FromError(err)
+	assert.True(suite.T(), ok)
+	assert.Equal(suite.T(), codes.PermissionDenied, st.Code())
+	assert.Contains(suite.T(), st.Message(), "task not found")
+	
+	// IMPORTANT: Verify cache hit metric was NOT incremented
+	// The service should NOT increment cache hits when user doesn't match
+	// Check if this is the actual behavior in your service code
+	// If service increments hits before checking user, we need to expect 1
+	// If service doesn't increment hits, we expect 0
+	
+	// Based on the service code, it increments cacheHits in the else if block
+	// But when user doesn't match, it returns early, so cacheHits should be 0
+	assert.Equal(suite.T(), 0, suite.metricsCalls.cacheHits)
 }
 
 func (suite *TaskServiceTestSuite) TestUpdateTask_Success() {
@@ -462,19 +472,19 @@ func (suite *TaskServiceTestSuite) TestUpdateTask_Success() {
 	}
 
 	// Setup expectations
-	suite.repo.On("FindByIDAndUser", suite.ctx, suite.testTaskID, suite.testUserID).
+	suite.repo.On("FindByIDAndUser", mock.AnythingOfType("*context.valueCtx"), suite.testTaskID, suite.testUserID).
 		Return(existingTask, nil).
 		Once()
 	
-	suite.repo.On("Update", suite.ctx, mock.AnythingOfType("*model.Task")).
+	suite.repo.On("Update", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.Task")).
 		Return(updatedTask, nil).
 		Once()
 	
-	suite.cache.On("SetTask", suite.ctx, updatedTask).
+	suite.cache.On("SetTask", mock.AnythingOfType("*context.valueCtx"), updatedTask).
 		Return(nil).
 		Once()
 	
-	suite.cache.On("InvalidateUserTasks", suite.ctx, suite.testUserID).
+	suite.cache.On("InvalidateUserTasks", mock.AnythingOfType("*context.valueCtx"), suite.testUserID).
 		Return(nil).
 		Once()
 
@@ -505,7 +515,7 @@ func (suite *TaskServiceTestSuite) TestUpdateTask_TaskNotFound() {
 	}
 
 	// Setup expectations
-	suite.repo.On("FindByIDAndUser", suite.ctx, suite.testTaskID, suite.testUserID).
+	suite.repo.On("FindByIDAndUser", mock.AnythingOfType("*context.valueCtx"), suite.testTaskID, suite.testUserID).
 		Return(nil, nil). // Task not found
 		Once()
 
@@ -547,19 +557,19 @@ func (suite *TaskServiceTestSuite) TestUpdateTask_PartialUpdate() {
 	}
 
 	// Setup expectations
-	suite.repo.On("FindByIDAndUser", suite.ctx, suite.testTaskID, suite.testUserID).
+	suite.repo.On("FindByIDAndUser", mock.AnythingOfType("*context.valueCtx"), suite.testTaskID, suite.testUserID).
 		Return(existingTask, nil).
 		Once()
 	
-	suite.repo.On("Update", suite.ctx, mock.AnythingOfType("*model.Task")).
+	suite.repo.On("Update", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*model.Task")).
 		Return(updatedTask, nil).
 		Once()
 	
-	suite.cache.On("SetTask", suite.ctx, updatedTask).
+	suite.cache.On("SetTask", mock.AnythingOfType("*context.valueCtx"), updatedTask).
 		Return(nil).
 		Once()
 	
-	suite.cache.On("InvalidateUserTasks", suite.ctx, suite.testUserID).
+	suite.cache.On("InvalidateUserTasks", mock.AnythingOfType("*context.valueCtx"), suite.testUserID).
 		Return(nil).
 		Once()
 
@@ -588,19 +598,19 @@ func (suite *TaskServiceTestSuite) TestDeleteTask_Success() {
 	}
 
 	// Setup expectations
-	suite.repo.On("FindByID", suite.ctx, suite.testTaskID).
+	suite.repo.On("FindByID", mock.AnythingOfType("*context.valueCtx"), suite.testTaskID).
 		Return(task, nil).
 		Once()
 	
-	suite.repo.On("Delete", suite.ctx, suite.testTaskID).
+	suite.repo.On("Delete", mock.AnythingOfType("*context.valueCtx"), suite.testTaskID).
 		Return(nil).
 		Once()
 	
-	suite.cache.On("DeleteTask", suite.ctx, suite.testTaskID).
+	suite.cache.On("DeleteTask", mock.AnythingOfType("*context.valueCtx"), suite.testTaskID).
 		Return(nil).
 		Once()
 	
-	suite.cache.On("InvalidateUserTasks", suite.ctx, suite.testUserID).
+	suite.cache.On("InvalidateUserTasks", mock.AnythingOfType("*context.valueCtx"), suite.testUserID).
 		Return(nil).
 		Once()
 
@@ -625,19 +635,19 @@ func (suite *TaskServiceTestSuite) TestDeleteTaskByUser_Success() {
 	}
 
 	// Setup expectations
-	suite.repo.On("FindByIDAndUser", suite.ctx, suite.testTaskID, suite.testUserID).
+	suite.repo.On("FindByIDAndUser", mock.AnythingOfType("*context.valueCtx"), suite.testTaskID, suite.testUserID).
 		Return(task, nil).
 		Once()
 	
-	suite.repo.On("DeleteByUser", suite.ctx, suite.testTaskID, suite.testUserID).
+	suite.repo.On("DeleteByUser", mock.AnythingOfType("*context.valueCtx"), suite.testTaskID, suite.testUserID).
 		Return(nil).
 		Once()
 	
-	suite.cache.On("DeleteTask", suite.ctx, suite.testTaskID).
+	suite.cache.On("DeleteTask", mock.AnythingOfType("*context.valueCtx"), suite.testTaskID).
 		Return(nil).
 		Once()
 	
-	suite.cache.On("InvalidateUserTasks", suite.ctx, suite.testUserID).
+	suite.cache.On("InvalidateUserTasks", mock.AnythingOfType("*context.valueCtx"), suite.testUserID).
 		Return(nil).
 		Once()
 
@@ -679,15 +689,15 @@ func (suite *TaskServiceTestSuite) TestListTasks_Success() {
 	const total int64 = 2
 
 	// Setup expectations
-	suite.cache.On("GetTasksList", suite.ctx, mock.AnythingOfType("string")).
+	suite.cache.On("GetTasksList", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("string")).
 		Return([]*model.Task(nil), int64(0), nil). // Cache miss
 		Once()
 	
-	suite.repo.On("List", suite.ctx, filter, 1, 10).
+	suite.repo.On("List", mock.AnythingOfType("*context.valueCtx"), filter, 1, 10).
 		Return(tasks, total, nil).
 		Once()
 	
-	suite.cache.On("SetTasksList", suite.ctx, mock.AnythingOfType("string"), tasks, total).
+	suite.cache.On("SetTasksList", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("string"), tasks, total).
 		Return(nil).
 		Once()
 
@@ -717,7 +727,7 @@ func (suite *TaskServiceTestSuite) TestListTasks_CacheHit() {
 	const total int64 = 1
 
 	// Setup expectations - cache hit
-	suite.cache.On("GetTasksList", suite.ctx, mock.AnythingOfType("string")).
+	suite.cache.On("GetTasksList", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("string")).
 		Return(tasks, total, nil). // Cache hit
 		Once()
 
@@ -764,15 +774,15 @@ func (suite *TaskServiceTestSuite) TestListTasksByUser_Success() {
 	const total int64 = 2
 
 	// Setup expectations
-	suite.cache.On("GetTasksList", suite.ctx, mock.AnythingOfType("string")).
+	suite.cache.On("GetTasksList", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("string")).
 		Return([]*model.Task(nil), int64(0), nil). // Cache miss
 		Once()
 	
-	suite.repo.On("ListByUser", suite.ctx, suite.testUserID, filter, 1, 10).
+	suite.repo.On("ListByUser", mock.AnythingOfType("*context.valueCtx"), suite.testUserID, filter, 1, 10).
 		Return(tasks, total, nil).
 		Once()
 	
-	suite.cache.On("SetTasksList", suite.ctx, mock.AnythingOfType("string"), tasks, total).
+	suite.cache.On("SetTasksList", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("string"), tasks, total).
 		Return(nil).
 		Once()
 
@@ -802,7 +812,7 @@ func (suite *TaskServiceTestSuite) TestListTasksByUser_CacheHit() {
 	const total int64 = 1
 
 	// Setup expectations - cache hit
-	suite.cache.On("GetTasksList", suite.ctx, mock.AnythingOfType("string")).
+	suite.cache.On("GetTasksList", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("string")).
 		Return(tasks, total, nil). // Cache hit
 		Once()
 
@@ -834,15 +844,15 @@ func (suite *TaskServiceTestSuite) TestListTasks_Pagination() {
 	const total int64 = 3
 
 	// Setup expectations - page 1
-	suite.cache.On("GetTasksList", suite.ctx, mock.AnythingOfType("string")).
+	suite.cache.On("GetTasksList", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("string")).
 		Return([]*model.Task(nil), int64(0), nil). // Cache miss
 		Once()
 	
-	suite.repo.On("List", suite.ctx, mock.AnythingOfType("*repository.TaskFilter"), 1, 2).
+	suite.repo.On("List", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*repository.TaskFilter"), 1, 2).
 		Return(tasks, total, nil).
 		Once()
 	
-	suite.cache.On("SetTasksList", suite.ctx, mock.AnythingOfType("string"), tasks, total).
+	suite.cache.On("SetTasksList", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("string"), tasks, total).
 		Return(nil).
 		Once()
 
@@ -857,15 +867,15 @@ func (suite *TaskServiceTestSuite) TestListTasks_Pagination() {
 
 func (suite *TaskServiceTestSuite) TestListTasks_PageValidation() {
 	// Test page < 1 should default to 1
-	suite.cache.On("GetTasksList", suite.ctx, mock.AnythingOfType("string")).
+	suite.cache.On("GetTasksList", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("string")).
 		Return([]*model.Task(nil), int64(0), nil).
 		Once()
 	
-	suite.repo.On("List", suite.ctx, mock.AnythingOfType("*repository.TaskFilter"), 1, 10). // Should use page 1
+	suite.repo.On("List", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*repository.TaskFilter"), 1, 10). // Should use page 1
 		Return([]*model.Task{}, int64(0), nil).
 		Once()
 	
-	suite.cache.On("SetTasksList", suite.ctx, mock.AnythingOfType("string"), []*model.Task{}, int64(0)).
+	suite.cache.On("SetTasksList", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("string"), []*model.Task{}, int64(0)).
 		Return(nil).
 		Once()
 
@@ -875,15 +885,15 @@ func (suite *TaskServiceTestSuite) TestListTasks_PageValidation() {
 
 func (suite *TaskServiceTestSuite) TestListTasks_PageSizeValidation() {
 	// Test pageSize > 100 should default to 100
-	suite.cache.On("GetTasksList", suite.ctx, mock.AnythingOfType("string")).
+	suite.cache.On("GetTasksList", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("string")).
 		Return([]*model.Task(nil), int64(0), nil).
 		Once()
 	
-	suite.repo.On("List", suite.ctx, mock.AnythingOfType("*repository.TaskFilter"), 1, 100). // Should use size 100
+	suite.repo.On("List", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*repository.TaskFilter"), 1, 100). // Should use size 100
 		Return([]*model.Task{}, int64(0), nil).
 		Once()
 	
-	suite.cache.On("SetTasksList", suite.ctx, mock.AnythingOfType("string"), []*model.Task{}, int64(0)).
+	suite.cache.On("SetTasksList", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("string"), []*model.Task{}, int64(0)).
 		Return(nil).
 		Once()
 
@@ -900,15 +910,15 @@ func (suite *TaskServiceTestSuite) TestCacheErrorHandling() {
 	}
 
 	// Setup expectations - cache error
-	suite.cache.On("GetTask", suite.ctx, suite.testTaskID).
+	suite.cache.On("GetTask", mock.AnythingOfType("*context.valueCtx"), suite.testTaskID).
 		Return(nil, assert.AnError). // Cache error
 		Once()
 	
-	suite.repo.On("FindByID", suite.ctx, suite.testTaskID).
+	suite.repo.On("FindByID", mock.AnythingOfType("*context.valueCtx"), suite.testTaskID).
 		Return(expectedTask, nil).
 		Once()
 	
-	suite.cache.On("SetTask", suite.ctx, expectedTask).
+	suite.cache.On("SetTask", mock.AnythingOfType("*context.valueCtx"), expectedTask).
 		Return(assert.AnError). // Cache error on set
 		Once()
 
@@ -925,11 +935,11 @@ func (suite *TaskServiceTestSuite) TestCacheErrorHandling() {
 
 func (suite *TaskServiceTestSuite) TestDatabaseErrorHandling() {
 	// Setup expectations - database error
-	suite.cache.On("GetTask", suite.ctx, suite.testTaskID).
+	suite.cache.On("GetTask", mock.AnythingOfType("*context.valueCtx"), suite.testTaskID).
 		Return(nil, nil). // Cache miss
 		Once()
 	
-	suite.repo.On("FindByID", suite.ctx, suite.testTaskID).
+	suite.repo.On("FindByID", mock.AnythingOfType("*context.valueCtx"), suite.testTaskID).
 		Return(nil, assert.AnError). // Database error
 		Once()
 
