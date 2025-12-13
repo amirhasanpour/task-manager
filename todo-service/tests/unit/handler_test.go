@@ -19,7 +19,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// Mock service
+// ==================== MOCKS ====================
+
 type MockTaskService struct {
 	mock.Mock
 }
@@ -76,6 +77,8 @@ func (m *MockTaskService) ListTasksByUser(ctx context.Context, userID string, fi
 	return args.Get(0).([]*model.Task), args.Get(1).(int64), args.Error(2)
 }
 
+// ==================== TEST SUITE ====================
+
 type TaskHandlerTestSuite struct {
 	suite.Suite
 	ctx      context.Context
@@ -89,13 +92,19 @@ func (suite *TaskHandlerTestSuite) SetupTest() {
 	suite.ctx = context.Background()
 	suite.service = new(MockTaskService)
 	suite.handler = handler.NewTaskHandler(suite.service)
-	suite.userID = "test-user-id"
-	suite.taskID = "test-task-id"
+	suite.userID = "test-user-123"
+	suite.taskID = "test-task-456"
 	
 	// Initialize logger for tests
 	logger, _ := zap.NewDevelopment()
 	zap.ReplaceGlobals(logger)
 }
+
+func (suite *TaskHandlerTestSuite) TearDownTest() {
+	suite.service.AssertExpectations(suite.T())
+}
+
+// ==================== TEST CASES ====================
 
 func (suite *TaskHandlerTestSuite) TestCreateTask_Success() {
 	dueDate := time.Now().Add(24 * time.Hour)
@@ -121,15 +130,15 @@ func (suite *TaskHandlerTestSuite) TestCreateTask_Success() {
 		UpdatedAt:   time.Now(),
 	}
 
-	// Expectations
+	// Setup expectations
 	suite.service.On("CreateTask", suite.ctx, mock.AnythingOfType("*service.CreateTaskRequest")).
 		Return(expectedTask, nil).
 		Once()
 
-	// Test
+	// Execute
 	resp, err := suite.handler.CreateTask(suite.ctx, req)
-	
-	// Assertions
+
+	// Verify
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), resp)
 	assert.NotNil(suite.T(), resp.Task)
@@ -156,20 +165,43 @@ func (suite *TaskHandlerTestSuite) TestGetTask_Success() {
 		UpdatedAt:   time.Now(),
 	}
 
-	// Expectations
+	// Setup expectations
 	suite.service.On("GetTask", suite.ctx, suite.taskID).
 		Return(expectedTask, nil).
 		Once()
 
-	// Test
+	// Execute
 	resp, err := suite.handler.GetTask(suite.ctx, req)
-	
-	// Assertions
+
+	// Verify
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), resp)
 	assert.NotNil(suite.T(), resp.Task)
 	assert.Equal(suite.T(), suite.taskID, resp.Task.Id)
 	assert.Equal(suite.T(), "Test Task", resp.Task.Title)
+}
+
+func (suite *TaskHandlerTestSuite) TestGetTask_NotFound() {
+	req := &pb.GetTaskRequest{
+		Id: "non-existent-id",
+	}
+
+	// Setup expectations
+	suite.service.On("GetTask", suite.ctx, "non-existent-id").
+		Return(nil, status.Error(codes.NotFound, "task not found")).
+		Once()
+
+	// Execute
+	resp, err := suite.handler.GetTask(suite.ctx, req)
+
+	// Verify
+	assert.Error(suite.T(), err)
+	assert.Nil(suite.T(), resp)
+	
+	st, ok := status.FromError(err)
+	assert.True(suite.T(), ok)
+	assert.Equal(suite.T(), codes.NotFound, st.Code())
+	assert.Contains(suite.T(), st.Message(), "task not found")
 }
 
 func (suite *TaskHandlerTestSuite) TestUpdateTask_Success() {
@@ -197,15 +229,15 @@ func (suite *TaskHandlerTestSuite) TestUpdateTask_Success() {
 		UpdatedAt:   time.Now(),
 	}
 
-	// Expectations
+	// Setup expectations
 	suite.service.On("UpdateTask", suite.ctx, mock.AnythingOfType("*service.UpdateTaskRequest")).
 		Return(updatedTask, nil).
 		Once()
 
-	// Test
+	// Execute
 	resp, err := suite.handler.UpdateTask(suite.ctx, req)
-	
-	// Assertions
+
+	// Verify
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), resp)
 	assert.NotNil(suite.T(), resp.Task)
@@ -214,20 +246,57 @@ func (suite *TaskHandlerTestSuite) TestUpdateTask_Success() {
 	assert.Equal(suite.T(), pb.TaskPriority_HIGH, resp.Task.Priority)
 }
 
+func (suite *TaskHandlerTestSuite) TestUpdateTask_PartialUpdate() {
+	title := "Updated Title Only"
+	
+	req := &pb.UpdateTaskRequest{
+		Id:     suite.taskID,
+		UserId: suite.userID,
+		Title:  title,
+		// Description, Status, Priority not provided (should remain unchanged)
+	}
+
+	updatedTask := &model.Task{
+		ID:          suite.taskID,
+		UserID:      suite.userID,
+		Title:       "Updated Title Only",
+		Description: "Original Description", // Unchanged
+		Status:      model.StatusTodo,       // Unchanged
+		Priority:    model.PriorityMedium,   // Unchanged
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	// Setup expectations
+	suite.service.On("UpdateTask", suite.ctx, mock.AnythingOfType("*service.UpdateTaskRequest")).
+		Return(updatedTask, nil).
+		Once()
+
+	// Execute
+	resp, err := suite.handler.UpdateTask(suite.ctx, req)
+
+	// Verify
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), resp)
+	assert.NotNil(suite.T(), resp.Task)
+	assert.Equal(suite.T(), "Updated Title Only", resp.Task.Title)
+	assert.Equal(suite.T(), "Original Description", resp.Task.Description)
+}
+
 func (suite *TaskHandlerTestSuite) TestDeleteTask_Success() {
 	req := &pb.DeleteTaskRequest{
 		Id: suite.taskID,
 	}
 
-	// Expectations
+	// Setup expectations
 	suite.service.On("DeleteTask", suite.ctx, suite.taskID).
 		Return(nil).
 		Once()
 
-	// Test
+	// Execute
 	resp, err := suite.handler.DeleteTask(suite.ctx, req)
-	
-	// Assertions
+
+	// Verify
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), resp)
 	assert.True(suite.T(), resp.Success)
@@ -268,15 +337,15 @@ func (suite *TaskHandlerTestSuite) TestListTasks_Success() {
 	
 	const total int64 = 2
 
-	// Expectations
+	// Setup expectations
 	suite.service.On("ListTasks", suite.ctx, mock.AnythingOfType("*repository.TaskFilter"), 1, 10).
 		Return(tasks, total, nil).
 		Once()
 
-	// Test
+	// Execute
 	resp, err := suite.handler.ListTasks(suite.ctx, req)
-	
-	// Assertions
+
+	// Verify
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), resp)
 	assert.Len(suite.T(), resp.Tasks, 2)
@@ -313,15 +382,15 @@ func (suite *TaskHandlerTestSuite) TestListTasksByUser_Success() {
 	
 	const total int64 = 1
 
-	// Expectations
+	// Setup expectations
 	suite.service.On("ListTasksByUser", suite.ctx, suite.userID, mock.AnythingOfType("*repository.TaskFilter"), 1, 10).
 		Return(tasks, total, nil).
 		Once()
 
-	// Test
+	// Execute
 	resp, err := suite.handler.ListTasksByUser(suite.ctx, req)
-	
-	// Assertions
+
+	// Verify
 	assert.NoError(suite.T(), err)
 	assert.NotNil(suite.T(), resp)
 	assert.Len(suite.T(), resp.Tasks, 1)
@@ -332,28 +401,52 @@ func (suite *TaskHandlerTestSuite) TestListTasksByUser_Success() {
 	assert.Equal(suite.T(), suite.userID, resp.Tasks[0].UserId)
 }
 
-func (suite *TaskHandlerTestSuite) TestHandlerErrorPropagation() {
+func (suite *TaskHandlerTestSuite) TestListTasks_EmptyResult() {
+	req := &pb.ListTasksRequest{
+		Page:     1,
+		PageSize: 10,
+	}
+
+	tasks := []*model.Task{}
+	const total int64 = 0
+
+	// Setup expectations
+	suite.service.On("ListTasks", suite.ctx, mock.AnythingOfType("*repository.TaskFilter"), 1, 10).
+		Return(tasks, total, nil).
+		Once()
+
+	// Execute
+	resp, err := suite.handler.ListTasks(suite.ctx, req)
+
+	// Verify
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), resp)
+	assert.Len(suite.T(), resp.Tasks, 0)
+	assert.Equal(suite.T(), int32(0), resp.Total)
+}
+
+func (suite *TaskHandlerTestSuite) TestErrorPropagation() {
 	req := &pb.GetTaskRequest{
 		Id: "non-existent-task",
 	}
 
-	// Expectations - service returns not found error
+	// Setup expectations - service returns internal error
 	suite.service.On("GetTask", suite.ctx, "non-existent-task").
-		Return(nil, status.Error(codes.NotFound, "task not found")).
+		Return(nil, status.Error(codes.Internal, "database error")).
 		Once()
 
-	// Test
+	// Execute
 	resp, err := suite.handler.GetTask(suite.ctx, req)
-	
-	// Assertions
+
+	// Verify
 	assert.Error(suite.T(), err)
 	assert.Nil(suite.T(), resp)
 	
 	// Verify error is propagated correctly
 	st, ok := status.FromError(err)
 	assert.True(suite.T(), ok)
-	assert.Equal(suite.T(), codes.NotFound, st.Code())
-	assert.Equal(suite.T(), "task not found", st.Message())
+	assert.Equal(suite.T(), codes.Internal, st.Code())
+	assert.Equal(suite.T(), "database error", st.Message())
 }
 
 func TestTaskHandlerTestSuite(t *testing.T) {
