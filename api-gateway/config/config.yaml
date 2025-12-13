@@ -27,7 +27,7 @@ metrics:
   port: 9091
 
 otel:
-  endpoint: "http://localhost:4317"
+  endpoint: "otel-collector:4317"
   service_name: "api-gateway"
 
 cors:
