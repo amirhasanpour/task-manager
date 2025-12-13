@@ -62,31 +62,58 @@ Before using Swagger UI, please read API Endpoint section. You can visit Swagger
 
 ---
 
-## Running Tests
+## Run Tests
 
-### Run All Tests
+### Run Unit Tests
 
 ```bash
 cd todo-service
 go test ./tests/... -v
 ```
 
-### Run Specific Test Suites
-
-#### Repository Tests Only
+#### Run Unit Tests with Coverage
 
 ```bash
-go test ./tests -run TestTaskRepositoryTestSuite -v
+go test ./tests/... -coverprofile=coverage.out -covermode=atomic
+go tool cover -func=coverage.out
+go tool cover -html=coverage.out -o coverage.html
 ```
 
-#### Service Tests Only
+### Run Integration Tests
 
 ```bash
-go test ./tests -run TestTaskServiceTestSuite -v
+# Start test database
+docker run -d --name test-postgres \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=test_tasks \
+  -p 5432:5432 \
+  postgres:15-alpine
+
+# Wait for database to start
+sleep 5
+
+# Run integration tests
+RUN_INTEGRATION_TESTS=true go test -tags=integration ./tests/integration -v
+
+# Clean up
+docker stop test-postgres && docker rm test-postgres
 ```
 
-#### Handler Tests Only
+### Run All Tests (Unit + Integration)
 
 ```bash
-go test ./tests -run TestTaskHandlerTestSuite -v
+# Create a test script
+cat > run_tests.sh << 'EOF'
+#!/bin/bash
+
+echo "=== Running Unit Tests ==="
+go test ./tests/... -v
+
+echo -e "\n=== Running Integration Tests ==="
+RUN_INTEGRATION_TESTS=true go test -tags=integration ./tests/integration -v
+EOF
+
+chmod +x run_tests.sh
+./run_tests.sh
 ```
