@@ -53,6 +53,15 @@ docker-compose down -v
 
 ---
 
+## Swagger
+
+Before using Swagger UI, please read API Endpoint section. You can visit Swagger UI in this address [http://localhost:8080/swagger/index.html#/]
+
+- [swagger.json](./api-gateway/internal/docs/swagger.json)
+- [swagger.yaml](./api-gateway/internal/docs/swagger.yaml)
+
+---
+
 ## Running Tests
 
 ### Run All Tests
@@ -81,8 +90,3 @@ go test ./tests -run TestTaskServiceTestSuite -v
 ```bash
 go test ./tests -run TestTaskHandlerTestSuite -v
 ```
-
-## Swagger
-
-- [swagger docs](./api-gateway/internal/docs/docs.go)
-- [swagger.json](./api-gateway/internal/docs/swagger.json)
